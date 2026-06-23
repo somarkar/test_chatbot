@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>p2m berlin GmbH Chatbot</title>
+<title>AI Document Assistant Demo for p2m berlin GmbH</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -14,7 +14,7 @@
     background: #f5f6f8;
     color: #1a1a1a;
   }
-  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .header h1 { font-size: 1.1rem; font-weight: 600; margin: 0; }
   .avatar {
     width: 36px; height: 36px; border-radius: 50%;
@@ -22,15 +22,22 @@
     display: flex; align-items: center; justify-content: center;
     font-weight: 600; font-size: 0.8rem; flex-shrink: 0;
   }
+  .intro { font-size: 0.9rem; color: #4b5563; margin-bottom: 12px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .example-btn {
+    background: white; border: 1px solid #d8dbe0; border-radius: 16px;
+    padding: 6px 12px; font-size: 0.82rem; color: #2563eb; cursor: pointer;
+  }
+  .example-btn:hover { background: #eef2ff; }
   #log {
     background: white; border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    padding: 16px; height: 480px; overflow-y: auto; margin-bottom: 12px;
+    padding: 16px; height: 440px; overflow-y: auto; margin-bottom: 12px;
     display: flex; flex-direction: column; gap: 12px;
   }
-  .row { display: flex; }
-  .row.user { justify-content: flex-end; }
-  .row.bot { justify-content: flex-start; }
+  .row { display: flex; flex-direction: column; }
+  .row.user { align-items: flex-end; }
+  .row.bot { align-items: flex-start; }
   .bubble {
     max-width: 80%; padding: 10px 14px; border-radius: 16px;
     line-height: 1.45; font-size: 0.95rem;
@@ -42,6 +49,9 @@
   .bubble ul { margin: 4px 0 8px 0; padding-left: 20px; }
   .bubble li { margin-bottom: 4px; }
   .bubble strong { font-weight: 600; }
+  .sources { max-width: 80%; font-size: 0.78rem; color: #6b7280; margin-top: 4px; }
+  .sources a { color: #2563eb; text-decoration: none; }
+  .sources a:hover { text-decoration: underline; }
   .typing { display: flex; gap: 4px; padding: 6px 0; }
   .typing span {
     width: 6px; height: 6px; border-radius: 50%; background: #9aa0a8;
@@ -56,24 +66,40 @@
     border: 1px solid #d8dbe0; border-radius: 10px; outline: none;
   }
   input:focus { border-color: #2563eb; }
-  button {
+  button.send {
     padding: 0 20px; font-size: 0.95rem; font-weight: 600; color: white;
     background: #2563eb; border: none; border-radius: 10px; cursor: pointer;
   }
-  button:hover { background: #1d4ed8; }
-  button:disabled { background: #9aa0a8; cursor: default; }
+  button.send:hover { background: #1d4ed8; }
+  button.send:disabled { background: #9aa0a8; cursor: default; }
+  .footer { margin-top: 14px; font-size: 0.78rem; color: #6b7280; line-height: 1.5; }
+  .footer a { color: #2563eb; text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
 <div class="header">
   <div class="avatar">P2M</div>
-  <h1>p2m berlin GmbH Assistant</h1>
+  <h1>AI Document Assistant Demo for p2m berlin GmbH</h1>
+</div>
+<div class="intro">
+  Ask questions about p2m berlin GmbH based on public website information.
+  <div class="examples" id="examples">
+    <button class="example-btn" type="button">What services does p2m offer?</button>
+    <button class="example-btn" type="button">What type of infrastructure projects does p2m work on?</button>
+    <button class="example-btn" type="button">Who can I contact at p2m?</button>
+    <button class="example-btn" type="button">What makes p2m different?</button>
+  </div>
 </div>
 <div id="log"></div>
 <form id="form">
   <input id="input" autocomplete="off" placeholder="Ask a question..." />
-  <button type="submit" id="send">Send</button>
+  <button type="submit" class="send" id="send">Send</button>
 </form>
+<div class="footer">
+  This is an independent demo created by Dr. Somar Karheily using publicly available information. It is not an official p2m tool.<br />
+  Interested in a private version for internal documents? Contact: <a href="mailto:somar.karheily@gmail.com">Somar Karheily</a>
+</div>
 <script>
 const chatUrl = "https://wulfyyeyzqbhtcfpttrf.supabase.co/functions/v1/chat";
 const log = document.getElementById("log");
@@ -106,7 +132,16 @@ function renderMarkdown(text) {
   return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") || escapeHtml(text);
 }
 
-function addMessage(role, text) {
+function renderSources(sources) {
+  if (!sources || !sources.length) return "";
+  const links = sources
+    .filter((s) => s.url)
+    .map((s) => `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a> – ${escapeHtml(s.url)}`);
+  if (!links.length) return "";
+  return "Sources: " + links.join("; ");
+}
+
+function addMessage(role, text, sources) {
   const row = document.createElement("div");
   row.className = "row " + role;
   const bubble = document.createElement("div");
@@ -117,6 +152,15 @@ function addMessage(role, text) {
     bubble.textContent = text;
   }
   row.appendChild(bubble);
+
+  const sourcesHtml = role === "bot" ? renderSources(sources) : "";
+  if (sourcesHtml) {
+    const cite = document.createElement("div");
+    cite.className = "sources";
+    cite.innerHTML = sourcesHtml;
+    row.appendChild(cite);
+  }
+
   log.appendChild(row);
   log.scrollTop = log.scrollHeight;
   return row;
@@ -133,12 +177,8 @@ function addTyping() {
 
 const history = [];
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const query = input.value.trim();
-  if (!query) return;
+async function sendQuery(query) {
   addMessage("user", query);
-  input.value = "";
   sendBtn.disabled = true;
   const typingRow = addTyping();
 
@@ -154,7 +194,7 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     const data = await response.json();
-    addMessage("bot", data.answer);
+    addMessage("bot", data.answer, data.sources);
     history.push({ role: "user", content: query });
     history.push({ role: "assistant", content: data.answer });
     history.splice(0, history.length - 6);
@@ -165,6 +205,19 @@ form.addEventListener("submit", async (event) => {
     sendBtn.disabled = false;
     input.focus();
   }
+}
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = input.value.trim();
+  if (!query) return;
+  input.value = "";
+  sendQuery(query);
+});
+
+document.getElementById("examples").addEventListener("click", (event) => {
+  if (!event.target.matches(".example-btn")) return;
+  sendQuery(event.target.textContent);
 });
 </script>
 </body>
