@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>p2m berlin GmbH Chatbot</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 1.2rem; }
+  #log { border: 1px solid #ddd; border-radius: 8px; padding: 12px; height: 420px; overflow-y: auto; margin-bottom: 12px; }
+  .msg { margin-bottom: 10px; }
+  .user { font-weight: 600; }
+  .bot { color: #222; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; padding: 8px; font-size: 1rem; }
+  button { padding: 8px 16px; font-size: 1rem; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>p2m berlin GmbH Assistant</h1>
+<div id="log"></div>
+<form id="form">
+  <input id="input" autocomplete="off" placeholder="Ask a question..." />
+  <button type="submit">Send</button>
+</form>
+<script>
+const chatUrl = "https://wulfyyeyzqbhtcfpttrf.supabase.co/functions/v1/chat";
+const log = document.getElementById("log");
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+
+function addMessage(role, text) {
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  div.textContent = (role === "user" ? "You: " : "Assistant: ") + text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const query = input.value.trim();
+  if (!query) return;
+  addMessage("user", query);
+  input.value = "";
+
+  try {
+    const response = await fetch(chatUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    if (!response.ok) {
+      addMessage("bot", "Error: " + response.status);
+      return;
+    }
+    const data = await response.json();
+    addMessage("bot", data.answer);
+  } catch (err) {
+    addMessage("bot", "Error: could not reach the server.");
+  }
+});
+</script>
+</body>
+</html>
