@@ -131,6 +131,8 @@ function addTyping() {
   return row;
 }
 
+const history = [];
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = input.value.trim();
@@ -144,7 +146,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch(chatUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, history }),
     });
     typingRow.remove();
     if (!response.ok) {
@@ -153,6 +155,9 @@ form.addEventListener("submit", async (event) => {
     }
     const data = await response.json();
     addMessage("bot", data.answer);
+    history.push({ role: "user", content: query });
+    history.push({ role: "assistant", content: data.answer });
+    history.splice(0, history.length - 6);
   } catch (err) {
     typingRow.remove();
     addMessage("bot", "Sorry, I couldn't reach the server. Please try again.");
