@@ -37,21 +37,37 @@
   }
   .row { display: flex; flex-direction: column; }
   .row.user { align-items: flex-end; }
-  .row.bot { align-items: flex-start; }
+  .row.bot { flex-direction: row; align-items: flex-start; gap: 8px; }
+  .bot-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    animation: bot-bob 2.6s ease-in-out infinite;
+  }
+  .bot-avatar .eye { width: 4px; height: 4px; border-radius: 50%; background: white; animation: bot-blink 3.4s infinite; }
+  @keyframes bot-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes bot-blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
+  .bot-col { display: flex; flex-direction: column; gap: 4px; max-width: 80%; }
   .bubble {
-    max-width: 80%; padding: 10px 14px; border-radius: 16px;
+    padding: 10px 14px; border-radius: 16px;
     line-height: 1.45; font-size: 0.95rem;
   }
-  .row.user .bubble { background: #2563eb; color: white; border-bottom-right-radius: 4px; }
+  .row.user .bubble { max-width: 80%; background: #2563eb; color: white; border-bottom-right-radius: 4px; }
   .row.bot .bubble { background: #eef0f3; color: #1a1a1a; border-bottom-left-radius: 4px; }
   .bubble p { margin: 0 0 8px 0; }
   .bubble p:last-child { margin-bottom: 0; }
   .bubble ul { margin: 4px 0 8px 0; padding-left: 20px; }
   .bubble li { margin-bottom: 4px; }
   .bubble strong { font-weight: 600; }
-  .sources { max-width: 80%; font-size: 0.78rem; color: #6b7280; margin-top: 4px; }
-  .sources a { color: #2563eb; text-decoration: none; }
-  .sources a:hover { text-decoration: underline; }
+  .sources-toggle {
+    background: none; border: none; color: #6b7280; font-size: 0.76rem;
+    cursor: pointer; padding: 0; text-align: left; align-self: flex-start;
+  }
+  .sources-toggle:hover { color: #2563eb; }
+  .sources-list { display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; }
+  .sources-list.hidden { display: none; }
+  .sources-list a { color: #2563eb; text-decoration: none; }
+  .sources-list a:hover { text-decoration: underline; }
   .typing { display: flex; gap: 4px; padding: 6px 0; }
   .typing span {
     width: 6px; height: 6px; border-radius: 50%; background: #9aa0a8;
@@ -133,18 +149,47 @@ function renderMarkdown(text) {
   return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") || escapeHtml(text);
 }
 
+function makeBotAvatar() {
+  const avatar = document.createElement("div");
+  avatar.className = "bot-avatar";
+  avatar.innerHTML = '<span class="eye"></span><span class="eye"></span>';
+  return avatar;
+}
+
 function renderSources(sources) {
-  if (!sources || !sources.length) return "";
-  const links = sources
-    .filter((s) => s.url)
-    .map((s) => `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a> – ${escapeHtml(s.url)}`);
-  if (!links.length) return "";
-  return "Sources: " + links.join("; ");
+  const valid = (sources || []).filter((s) => s.url);
+  if (!valid.length) return null;
+
+  const label = (n) => (n === 1 ? "1 source" : n + " sources");
+  const wrap = document.createElement("div");
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "sources-toggle";
+  toggle.textContent = label(valid.length) + " ▾";
+  const list = document.createElement("div");
+  list.className = "sources-list hidden";
+  valid.forEach((s) => {
+    const a = document.createElement("a");
+    a.href = s.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = s.title || s.url;
+    list.appendChild(a);
+  });
+  toggle.addEventListener("click", () => {
+    list.classList.toggle("hidden");
+    toggle.textContent = label(valid.length) + (list.classList.contains("hidden") ? " ▾" : " ▴");
+  });
+
+  wrap.appendChild(toggle);
+  wrap.appendChild(list);
+  return wrap;
 }
 
 function addMessage(role, text, sources) {
   const row = document.createElement("div");
   row.className = "row " + role;
+
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   if (role === "bot") {
@@ -152,14 +197,17 @@ function addMessage(role, text, sources) {
   } else {
     bubble.textContent = text;
   }
-  row.appendChild(bubble);
 
-  const sourcesHtml = role === "bot" ? renderSources(sources) : "";
-  if (sourcesHtml) {
-    const cite = document.createElement("div");
-    cite.className = "sources";
-    cite.innerHTML = sourcesHtml;
-    row.appendChild(cite);
+  if (role === "bot") {
+    row.appendChild(makeBotAvatar());
+    const col = document.createElement("div");
+    col.className = "bot-col";
+    col.appendChild(bubble);
+    const sourcesEl = renderSources(sources);
+    if (sourcesEl) col.appendChild(sourcesEl);
+    row.appendChild(col);
+  } else {
+    row.appendChild(bubble);
   }
 
   log.appendChild(row);
@@ -170,7 +218,11 @@ function addMessage(role, text, sources) {
 function addTyping() {
   const row = document.createElement("div");
   row.className = "row bot";
-  row.innerHTML = '<div class="bubble typing"><span></span><span></span><span></span></div>';
+  row.appendChild(makeBotAvatar());
+  const col = document.createElement("div");
+  col.className = "bot-col";
+  col.innerHTML = '<div class="bubble typing"><span></span><span></span><span></span></div>';
+  row.appendChild(col);
   log.appendChild(row);
   log.scrollTop = log.scrollHeight;
   return row;
